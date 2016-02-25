@@ -12,8 +12,7 @@ struct Interval
 
 Interval beginInterval{ -10, 20 };
 
-const double EPS	= 1e-4;
-const double DELTA	= EPS / 2.0;
+double EPS;
 
 double f( double x )
 {
@@ -22,7 +21,7 @@ double f( double x )
 
 void printMinHead( ofstream & output )
 {
-	output << "IterCount" << '\t' << "Left" << '\t' << "Right" << '\t' << "Delta" << '\t' << "Relation" << endl;
+	output << "Iter" << '\t' << "Left" << '\t' << "Right" << '\t' << "Delta" << '\t' << "Relation" << endl;
 }
 
 void printMinStep( ofstream & output, int k, const Interval & current, const Interval & prev )
@@ -35,21 +34,29 @@ void printMinStep( ofstream & output, int k, const Interval & current, const Int
 	output << currentDelta << '\t' << relation << endl;
 }
 
-void printIntervalHead( ofstream & output )
+void printIntervalHeadFixX( ofstream & output )
 {
-	output << "Delta" << '\t' << "Interval" << "\t\t" << "Iter count" << endl;
+	output << "Delta\t" << "Interval\t\t" << "Length\t" << "Iter count" << endl;
 }
 
-void printIntervalStep( ofstream & output, Interval & interval, int iterCount, double delta )
+void printIntervalHeadFixEps( ofstream & output )
+{
+	output << "x0\t" << "Interval\t" << "Length\t" << "IterCount" << endl;
+}
+
+void printIntervalStep( ofstream & output, Interval & interval, int iterCount, double delta, double x, bool needX )
 {
 	output.precision( 7 );
 	output << std::scientific;
-	output << delta << '\t' << "[" << interval.left << ", " << interval.right << "]\t" << iterCount << endl;
+	output << (needX ? x : delta);
+	output << '\t' << "[" << interval.left << "," << interval.right << "]\t" << interval.right - interval.left << "\t" << iterCount << endl;
 }
 
-void dichotomy()
+double dichotomy( int & iterCount )
 {
-	ofstream output("dichotomy.txt");
+	static int count = 0;
+	--count;
+	ofstream output("dichotomy" + to_string( count ) + ".txt");
 
 	int k = 0;
 	Interval currentInterval	= beginInterval;
@@ -57,6 +64,7 @@ void dichotomy()
 	double x1, x2;
 
 	printMinHead( output );
+	double DELTA = EPS / 2.0;
 	while (currentInterval.right - currentInterval.left >= EPS) {
 		prevInterval = currentInterval;
 
@@ -70,11 +78,16 @@ void dichotomy()
 		++k;
 		printMinStep( output, k, currentInterval, prevInterval );
 	}
+	iterCount = k;
+	return ( currentInterval.left + currentInterval.right ) * 0.5;
 }
 
-void goldenSection()
+double goldenSection( int & iterCount )
 {
-	ofstream output( "goldenSection.txt" );
+	static int count = 0;
+	--count;
+
+	ofstream output( "goldenSection" + to_string( count ) + ".txt" );
 
 	int k = 0;
 	Interval currentInterval	= beginInterval;
@@ -123,6 +136,8 @@ void goldenSection()
 
 		printMinStep(output, k, currentInterval, prevInterval);
 	}
+	iterCount = k;
+	return ( currentInterval.left + currentInterval.right ) * 0.5;
 }
 
 void createFibArray( vector<double> & array, int & iterCount )
@@ -144,9 +159,12 @@ void createFibArray( vector<double> & array, int & iterCount )
 	iterCount = iter;
 }
 
-void fibonacci()
+double fibonacci( int & iterCount )
 {
-	ofstream output( "fibonacci.txt" );
+	static int count = 0;
+	--count;
+
+	ofstream output( "fibonacci" + to_string( count ) + ".txt" );
 
 	const double DELTA = (beginInterval.right - beginInterval.left);
 	Interval currentInterval = beginInterval;
@@ -206,52 +224,92 @@ void fibonacci()
 
 		printMinStep( output, k, currentInterval, prevInterval );
 	}
+	iterCount = k;
+	return ( currentInterval.left + currentInterval.right ) * 0.5;
 }
 
-void minInterval( double x0 )
+void minInterval( double x0, ofstream & output, bool needX )
 {
-	ofstream output( "interval.txt" );
-
 	double h;
-	double DELTA = 1e-1;
-	printIntervalHead( output );
-	while ( DELTA > 1e-15 ) {
-		if ( f( x0 ) > f( x0 + DELTA ) )
-			h = DELTA;
-		else if ( f( x0 ) > f( x0 - DELTA ) )
-			h = -DELTA;
+	if ( f( x0 ) > f( x0 + EPS ) )
+		h = EPS;
+	else if ( f( x0 ) > f( x0 - EPS ) )
+		h = -EPS;
 
-		double prevX = x0;
-		double currentX = prevX + h;
+	double prevX = x0;
+	double currentX = prevX + h;
 
-		int k = 1;
-		Interval currentInterval{ x0, x0 };
-		double prevF = f( prevX );
-		double currentF = f( currentX );
-		while ( prevF > currentF ) {
-			currentInterval.right = prevX;
-			prevX = currentX;
-			prevF = currentF;
-			h *= 2;
-			currentX = prevX + h;
-			currentF = f( currentX );
-			currentInterval.left = currentX;
-			++k;
-		}
-		printIntervalStep( output, currentInterval, k, DELTA );
-
-		DELTA *= 1e-1;
+	int k = 1;
+	Interval currentInterval{ x0, x0 };
+	double prevF = f( prevX );
+	double currentF = f( currentX );
+	while ( prevF > currentF ) {
+		currentInterval.right = prevX;
+		prevX = currentX;
+		prevF = currentF;
+		h *= 2;
+		currentX = prevX + h;
+		currentF = f( currentX );
+		currentInterval.left = currentX;
+		++k;
 	}
-	// printIntervalStep(  );
+	printIntervalStep( output, currentInterval, k, EPS, x0, needX );
+}
+
+void printResultHead( ofstream & output )
+{
+	output << "EPS\t" << "IterCount\t" << "Error\t" << "Result" << endl;
 }
 
 int main()
 {
-	dichotomy();
-	goldenSection();
-	fibonacci();
+	double TRUE_VALUE = -1.0;
 
-	minInterval( 0.0 );
+	ofstream output( "dichotomy_result.txt" );
+	printResultHead( output );
+	output.precision( 14 );
+	output << std::scientific;
+	for ( EPS = 1e-1; EPS > 1e-14; EPS *= 1e-1 ) {
+		int iterCount;
+		double x = dichotomy( iterCount );
+		output << EPS << ' ' << iterCount << ' ' << fabs( x - TRUE_VALUE ) / TRUE_VALUE << ' ' << x << endl;
+	}
+	output.close();
+
+	output.open( "goldenSection_result.txt" );
+	printResultHead( output );
+	output.precision( 14 );
+	output << std::scientific;
+	for ( EPS = 1e-1; EPS > 1e-14; EPS *= 1e-1 ) {
+		int iterCount;
+		double x = goldenSection( iterCount );
+		output << EPS << ' ' << iterCount << ' ' << fabs( x - TRUE_VALUE ) / TRUE_VALUE << ' ' << x << endl;
+	}
+	output.close();
+
+	output.open( "fibonacci_result.txt" );
+	printResultHead( output );
+	output.precision( 14 );
+	output << std::scientific;
+	for ( EPS = 1e-1; EPS > 1e-14; EPS *= 1e-1 ) {
+		int iterCount;
+		double x = fibonacci( iterCount );
+		output << EPS << ' ' << iterCount << ' ' << fabs( x - TRUE_VALUE ) / TRUE_VALUE << ' ' << x << endl;
+	}
+	output.close();
+
+	output.open( "interval_fixX.txt" );
+	printIntervalHeadFixX( output );
+	for ( EPS = 1e-1; EPS > 1e-14; EPS *= 1e-1 )
+		minInterval( 4.0, output, false );
+	output.close();
+
+	output.open( "interval_fixDelta.txt" );
+	printIntervalHeadFixEps( output );
+	EPS = 1e-8;
+	for ( double x = -95; x < 100; x += 10.0 )
+		minInterval( x, output, true );
+	output.close();
 
 	return 0;
 }
